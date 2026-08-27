@@ -1,0 +1,26 @@
+{
+  "enable_auto_push": {
+    "description": "全局自动推送总开关",
+    "type": "bool",
+    "default": true,
+    "hint": "关闭后所有会话都停止自动推送（手动 /查看 和 /订阅测试 仍可用）。可用命令 /推送总开关 off|on 随时切换。"
+  },
+  "default_interval_min": {
+    "description": "默认自动推送间隔（分钟）",
+    "type": "int",
+    "default": 30,
+    "hint": "新订阅按此间隔自动轮询推送（未单独设置每天定时时间时）。"
+  },
+  "min_interval_min": {
+    "description": "最小推送间隔（分钟）",
+    "type": "int",
+    "default": 10,
+    "hint": "防止把频率设得过低给订阅源和机器人造成压力。"
+  },
+  "weibo_top_n": {
+    "description": "热搜榜类卡片（微博/百度/腾讯/B站）显示的条数",
+    "type": "int",
+    "default": 20,
+    "hint": "1-50 之间。热搜榜默认取前 20 条渲染进图片卡片。"
+  }
+}

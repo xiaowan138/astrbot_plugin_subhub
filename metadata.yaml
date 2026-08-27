@@ -1,0 +1,32 @@
+name: astrbot_plugin_subhub # 插件唯一识别名
+display_name: 统一订阅推送中心 # 用于展示的名字
+desc: |
+  一站式订阅推送插件。聚合 7 类内容源：微博热搜、百度热搜、腾讯新闻热榜、
+  B站热门、Steam特惠、今日更新番剧、任意 RSS/Atom。按设定时间或间隔自动
+  主动推送到群聊/会话，也可手动触发，Pillow 渲染成美观图片卡片。
+  多级开关：全局总开关 + 群级暂停；一键测试全部来源可用性。
+  用法示例：
+  - /订阅 微博热搜|rss <链接>  订阅内置源或任意 RSS/Atom
+  - /查看 <源>|编号            立即抓取推送一次
+  - /我的订阅 /退订 <编号>     管理订阅
+  - /推送总开关 on|off         全局自动推送总开关（需管理员）
+  - /订阅测试                  一键验证全部功能
+  - /订阅间隔 HH:MM            定时推送（需管理员，HH:MM 每日定时，或填 分钟数）
+short_desc: 统一订阅推送中心：微博/百度/腾讯/B站/Steam/番剧/RSS 定时推送。
+version: v1.0.0 # 插件版本号。格式：v1.1.1 或 v1.1
+author: xiaowan138 # 作者
+repo: https://github.com/xiaowan138/astrbot_plugin_subhub.git # 插件仓库地址
+icon: ./icon.png # 插件图标
+astrbot_version: ">=4.5.7" # 需要 send_message / 图片组件等 API
+tags:
+  - 订阅
+  - RSS
+  - 热搜
+  - 推送
+  - 定时
+support_platforms:
+  - aiocqhttp
+  - qq_official
+  - telegram
+  - discord
+  - lark
