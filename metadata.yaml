@@ -16,7 +16,6 @@ short_desc: 统一订阅推送中心：微博/百度/腾讯/B站/Steam/番剧/RS
 version: v1.0.0 # 插件版本号。格式：v1.1.1 或 v1.1
 author: xiaowan138 # 作者
 repo: https://github.com/xiaowan138/astrbot_plugin_subhub.git # 插件仓库地址
-icon: ./icon.png # 插件图标
 astrbot_version: ">=4.5.7" # 需要 send_message / 图片组件等 API
 tags:
   - 订阅
