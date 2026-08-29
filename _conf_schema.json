@@ -18,9 +18,39 @@
     "hint": "防止把频率设得过低给订阅源和机器人造成压力。"
   },
   "weibo_top_n": {
-    "description": "热搜榜类卡片（微博/百度/腾讯/B站）显示的条数",
+    "description": "内置源卡片显示条数",
     "type": "int",
     "default": 20,
-    "hint": "1-50 之间。热搜榜默认取前 20 条渲染进图片卡片。"
+    "hint": "1-50 之间。所有内置源（微博/百度/知乎/抖音/腾讯/B站/36氪/Steam/番剧/GitHub/HN/V2EX）默认取前 20 条渲染进图片卡片。"
+  },
+  "digest_top_n": {
+    "description": "订阅汇总卡片中每个来源显示条数",
+    "type": "int",
+    "default": 3,
+    "hint": "1-10 之间。/订阅汇总 开启后，每日汇总卡片里每个来源取前几条。"
+  },
+  "theme": {
+    "description": "卡片配色主题",
+    "type": "string",
+    "default": "dark",
+    "hint": "dark = 深色（默认），light = 浅色。修改后对之后渲染的卡片生效。"
+  },
+  "quiet_hours": {
+    "description": "静默时段（不打扰）",
+    "type": "string",
+    "default": "",
+    "hint": "格式如 23:00-07:00，静默时段内不推送任何内容。留空表示不启用。跨零点的区间也支持。"
+  },
+  "quiet_catchup": {
+    "description": "静默时段结束后补发",
+    "type": "bool",
+    "default": true,
+    "hint": "若汇总推送时间落在静默时段内，出静默时段后立即补发一张汇总卡片（轮询订阅按间隔自然恢复，无需补发）。"
+  },
+  "auto_pause_after_fails": {
+    "description": "连续失败自动暂停阈值",
+    "type": "int",
+    "default": 5,
+    "hint": "某订阅连续抓取失败达到此次数后自动暂停并在会话内通知，防止反复打错误日志。填 0 关闭该自愈机制。恢复：/订阅开关 <编号> on。"
   }
 }

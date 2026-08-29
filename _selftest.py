@@ -1,123 +1,163 @@
 """
-统一订阅推送中心 - 全功能自测脚本（交付前验证用）
+全功能自测脚本（不依赖 AstrBot，直接在插件目录运行）：
 
-逐个抓取所有来源 -> 构造卡片 -> 渲染成 PNG 图片，验证抓取与渲染链路，
-并把产物保存到 out/ 目录供人工核对。
+    python _selftest.py
 
-运行：python _selftest.py
+覆盖：
+- 12 类内置源 + RSS 演示源的真实抓取与数据结构校验
+- 每类源渲染成图片卡片并落盘到 out/
+- 订阅汇总（digest）卡片渲染
+- 明暗双主题渲染
 """
+
+from __future__ import annotations
 
 import asyncio
 import json
-import os
 from pathlib import Path
 
-from fetchers import (
-    fetch_weibo_hot,
-    fetch_baidu_hot,
-    fetch_tencent_news,
-    fetch_bili_hot,
-    fetch_steam_specials,
-    fetch_bangumi,
-    fetch_rss,
-)
-from utils import render_image
-
-# 与 main.py _SOURCES 一致：kind -> (标题, 是否榜型)
-KINDS = [
-    ("weibo", "微博热搜", True),
-    ("baidu", "百度热搜", True),
-    ("tencent", "腾讯新闻热榜", True),
-    ("bili", "B站热门", True),
-    ("steam", "Steam 特惠", False),
-    ("bangumi", "今日更新番剧", False),
-]
-DEMO_RSS = "https://www.ruanyifeng.com/blog/atom.xml"
+import fetchers
+from utils import render_image, set_theme
 
 OUT = Path(__file__).resolve().parent / "out"
 OUT.mkdir(exist_ok=True)
 
+DEMO_RSS = "https://www.ruanyifeng.com/blog/atom.xml"
 
-def _board_card(kind, title, items):
-    return {
-        "kind": kind,
-        "title": f"🔖 {title}",
-        "subtitle": f"实时 · 共 {len(items)} 条",
-        "items": items,
-    }
+# kind, 显示名, emoji, 副标题模板, fetcher 函数, 渲染风格(board/list)
+KINDS = [
+    ("weibo", "微博热搜", "🔥", "实时 · 共 {n} 条", "fetch_weibo_hot"),
+    ("baidu", "百度热搜", "🍃", "实时 · 共 {n} 条", "fetch_baidu_hot"),
+    ("zhihu", "知乎热榜", "💙", "实时 · 共 {n} 条", "fetch_zhihu_hot"),
+    ("douyin", "抖音热搜", "🎵", "实时 · 共 {n} 条", "fetch_douyin_hot"),
+    ("tencent", "腾讯新闻热榜", "📰", "实时 · 共 {n} 条", "fetch_tencent_news"),
+    ("bili", "B站热门", "🎬", "实时 · 共 {n} 条", "fetch_bili_hot"),
+    ("kr36", "36氪热榜", "💼", "科技快讯 · 共 {n} 条", "fetch_36kr"),
+    ("steam", "Steam 特惠", "🎮", "限时特惠 · 共 {n} 款", "fetch_steam_specials"),
+    ("bangumi", "今日更新番剧", "🍙", "今日更新 · 共 {n} 部", "fetch_bangumi"),
+    ("github", "GitHub Trending", "🐙", "今日趋势 · 共 {n} 仓库", "fetch_github_trending"),
+    ("hn", "Hacker News", "🟠", "首页热帖 · 共 {n} 条", "fetch_hn"),
+    ("v2ex", "V2EX 热门", "💬", "热门话题 · 共 {n} 条", "fetch_v2ex"),
+]
+
+REQUIRED_FIELDS = ("title", "url", "id")
 
 
-def _list_card(kind, title, items, subtitle):
-    return {
-        "kind": kind,
-        "title": f"🔖 {title}",
-        "subtitle": subtitle,
-        "items": items,
-    }
-
-
-async def fetch_for(kind):
-    if kind == "weibo":
-        return (await fetch_weibo_hot(12)).get("items", [])
-    if kind == "baidu":
-        return await fetch_baidu_hot(12)
-    if kind == "tencent":
-        return await fetch_tencent_news(12)
-    if kind == "bili":
-        return await fetch_bili_hot(12)
-    if kind == "steam":
-        return await fetch_steam_specials(12)
-    if kind == "bangumi":
-        return (await fetch_bangumi(12)).get("items", [])
-    return []
+def check_items(kind: str, items) -> str:
+    if not isinstance(items, list) or not items:
+        return "EMPTY"
+    for i, it in enumerate(items[:3]):
+        for f in REQUIRED_FIELDS:
+            if f not in it:
+                return f"第{i + 1}条缺字段 {f}"
+        if not it.get("title"):
+            return f"第{i + 1}条 title 为空"
+    return "OK"
 
 
 async def main():
-    results = []
-    # 1) 内置榜型/列表源
-    for kind, title, is_board in KINDS:
+    ok = fail = 0
+    sections = []
+
+    for kind, title, emoji, tmpl, fn_name in KINDS:
+        fn = getattr(fetchers, fn_name)
         try:
-            items = await fetch_for(kind)
-            if is_board:
-                card = _board_card(kind, title, items)
-            elif kind == "steam":
-                card = _list_card(kind, title, items, f"限时特惠 · 共 {len(items)} 款")
-            else:
-                card = _list_card(kind, title, items, f"今日更新 · 共 {len(items)} 部")
+            res = await fn("", max_items=12)
+            items = res.get("items", []) if isinstance(res, dict) else res
+            status = check_items(kind, items)
+            if status != "OK":
+                raise RuntimeError(f"数据校验失败: {status}")
+            card = {
+                "kind": kind,
+                "title": f"{emoji} {title}",
+                "subtitle": tmpl.format(n=len(items)),
+                "items": items,
+            }
             img = render_image(card)
-            path = OUT / f"{kind}.png"
-            if img:
-                path.write_bytes(img)
-            ok = bool(img) and len(items) > 0
-            results.append((title, ok, len(items), path.name if img else "镜像失败"))
+            if not img:
+                raise RuntimeError("渲染返回空")
+            (OUT / f"{kind}.png").write_bytes(img)
+            first = items[0]
+            print(f"[PASS] {title}: {len(items)} 条 · 首条={first.get('title', '')[:28]} "
+                  f"hot={first.get('hot', first.get('meta', ''))}")
+            if items:
+                sections.append({"title": f"{emoji} {title}", "items": items[:3]})
+            ok += 1
         except Exception as e:
-            results.append((title, False, 0, f"{type(e).__name__}: {e}"))
+            print(f"[FAIL] {title}: {type(e).__name__}: {e}")
+            fail += 1
 
-    # 2) RSS 抓取 + 渲染
+    # RSS 演示源
     try:
-        rss_items = await fetch_rss(DEMO_RSS, max_items=8)
-        card = _list_card("rss", "RSS（演示源）", rss_items, f"新更新 {len(rss_items)} 条")
+        items = await fetchers.fetch_rss(DEMO_RSS, max_items=8)
+        status = check_items("rss", items)
+        if status != "OK":
+            raise RuntimeError(f"数据校验失败: {status}")
+        card = {
+            "kind": "rss",
+            "title": "📰 Ruan Yifeng's Blog",
+            "subtitle": f"新更新 {len(items)} 条",
+            "items": items,
+        }
         img = render_image(card)
-        path = OUT / "rss.png"
-        if img:
-            path.write_bytes(img)
-        results.append(("RSS订阅", bool(img) and len(rss_items) > 0, len(rss_items), path.name if img else "镜像失败"))
+        if not img:
+            raise RuntimeError("渲染返回空")
+        (OUT / "rss.png").write_bytes(img)
+        desc_ok = any(it.get("desc") for it in items)
+        print(f"[PASS] RSS（演示源）: {len(items)} 条 · 摘要行={'有' if desc_ok else '无'} · "
+              f"首条={items[0].get('title', '')[:28]}")
+        if items:
+            sections.append({"title": "📰 RSS（演示源）", "items": items[:3]})
+        ok += 1
     except Exception as e:
-        results.append(("RSS订阅", False, 0, f"{type(e).__name__}: {e}"))
+        print(f"[FAIL] RSS（演示源）: {type(e).__name__}: {e}")
+        fail += 1
 
-    # 汇总
-    print("\n" + "=" * 56)
-    print(f"{'来源':<14}{'结果':<5}{'条数':<6}产物")
-    print("-" * 56)
-    ok_cnt = 0
-    for title, ok, n, prod in results:
-        mark = "✅" if ok else "❌"
-        if ok:
-            ok_cnt += 1
-        print(f"{title:<14}{mark:<6}{n:<6}{prod}")
-    print("-" * 56)
-    print(f"共 {len(results)} 项，成功 {ok_cnt} 项，失败 {len(results) - ok_cnt} 项。")
-    print(f"卡片产物已保存到：{OUT}")
+    # 汇总卡片
+    if sections:
+        try:
+            card = {
+                "kind": "digest",
+                "title": "📬 订阅汇总",
+                "subtitle": f"{len(sections)} 个来源",
+                "sections": sections,
+            }
+            img = render_image(card)
+            if not img:
+                raise RuntimeError("渲染返回空")
+            (OUT / "digest.png").write_bytes(img)
+            print(f"[PASS] 汇总卡片: {len(sections)} 个分区")
+            ok += 1
+        except Exception as e:
+            print(f"[FAIL] 汇总卡片: {type(e).__name__}: {e}")
+            fail += 1
+
+    # 浅色主题抽查
+    try:
+        set_theme("light")
+        if sections:
+            card = {
+                "kind": "digest",
+                "title": "📬 订阅汇总",
+                "subtitle": "light theme",
+                "sections": sections,
+            }
+            img = render_image(card)
+            if not img:
+                raise RuntimeError("渲染返回空")
+            (OUT / "theme_light.png").write_bytes(img)
+            set_theme("dark")
+            print("[PASS] 浅色主题渲染")
+            ok += 1
+    except Exception as e:
+        set_theme("dark")
+        print(f"[FAIL] 浅色主题渲染: {type(e).__name__}: {e}")
+        fail += 1
+
+    print(f"\n===== 自测结果：成功 {ok} / 失败 {fail} =====")
+    print(f"渲染图片输出目录: {OUT}")
+    raise SystemExit(0 if fail == 0 else 1)
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
